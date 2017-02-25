@@ -24,6 +24,7 @@ en0: flags=8863<UP,BROADCAST,SMART,RUNNING,SIMPLEX,MULTICAST> mtu 1500
 	nd6 options=201<PERFORMNUD,DAD>
 	media: autoselect
 	status: active
+$ 
 ```
 The truncated output above will show for example my Mac is in network `10.0.0.53`. Enter in the `UDPSendReceiveString` sketch another IP address I prefer something like `10.0.0.200`.
 
