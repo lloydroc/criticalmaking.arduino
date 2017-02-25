@@ -2,7 +2,7 @@
    the photoresistor. See circuit on page 71 of the Arduino Projects
    book for the circuit. It's effectively a photo resistor and 10k Ohm
    resistor connected from 5V to A0 of the Arduino
-*/ 
+ */ 
 #define thresh 600 // If our analogRead is less than this we will blink
 
 void setup() {
