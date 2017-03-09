@@ -15,7 +15,7 @@ byte mac[] = {
 IPAddress ip(192, 168, 1, 100);
 IPAddress remoteIp(192, 168, 1, 200);
 int NUMPIXELS = 12;
-char ReplyBuffer[] = "ack pwoth a: ";
+char ReplyBuffer[] = "ACK from pwoth a: ";
 #endif
 
 #if defined (PWOTH_B)
@@ -25,7 +25,7 @@ byte mac[] = {
 IPAddress ip(192, 168, 1, 200);
 IPAddress remoteIp(192, 168, 1, 100);
 int NUMPIXELS = 8;
-char ReplyBuffer[] = "ack pwoth b: ";
+char ReplyBuffer[] = "ACK from pwoth b: ";
 #endif
 
 int c = 128;
@@ -40,16 +40,13 @@ EthernetUDP Udp;
 // Pin output for NeoPixel
 #define PIN 7
 
-// When we setup the NeoPixel library, we tell it how many pixels, and which pin to use to send signals.
-// Note that for older NeoPixel strips you might need to change the third parameter--see the strandtest
-// example for more information on possible values.
+// NeoPixel
 Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
 
 // Joystick Related
 int xPin = A1;
 int yPin = A0;
 int buttonPin = 2;
-
 int xPosition = 0;
 int yPosition = 0;
 int buttonState = 0;
@@ -61,12 +58,6 @@ void setup() {
   Serial.begin(9600);
 
   // Neopixel setup
-  // This is for Trinket 5V 16MHz, you can remove these three lines if you are not using a Trinket
-#if defined (__AVR_ATtiny85__)
-  if (F_CPU == 16000000) clock_prescale_set(clock_div_1);
-#endif
-  // End of trinket special code
-
   pixels.begin(); // This initializes the NeoPixel library.
 
   // Joystick setup
@@ -76,6 +67,7 @@ void setup() {
   //activate pull-up resistor on the push-button pin
   pinMode(buttonPin, INPUT_PULLUP);
 
+  // Well flash the builtin LED
   pinMode(LED_BUILTIN,OUTPUT);
 }
 
@@ -87,28 +79,27 @@ void loop() {
   yPosition = analogRead(yPin);
   buttonState = digitalRead(buttonPin);
 
-  // For debugging
-  /*Serial.print("X: ");
-    Serial.print(xPosition);
-    Serial.print(" | Y: ");
-    Serial.print(yPosition);
-    Serial.print(" | Button: ");
-    Serial.println(buttonState);*/
-
   int low_thresh = 250;
   int hig_thresh = 750;
-  int mid_threas = 512;
 
   int code = -1; // unknown code
-  char replyBuffer[8];
+  char replyBuffer[9];
 
+  // The joystick can have 9 states, 4 for up/down/left/right
+  // and 4 for the diagonal positions and one for the button
+  // depending on the length of received code we will display different
+  // rgb combinations
+  // sending the length is non-optimal but problems with Python
+  // sending non-string UDP buffers and time contraints led us in
+  // this direction. It would be better to only send a single
+  // char and react based on it
   replyBuffer[0] = '\0';
   if (buttonState == 0) {
+    code = 8; // for darkness
+    sprintf(replyBuffer, "88888888");
+  } else if (xPosition < low_thresh && yPosition < low_thresh) { // these 4 are diagonal
     code = 1;
     sprintf(replyBuffer, "1");
-  } else if (xPosition < low_thresh && yPosition < low_thresh) { // these 4 are diagonol
-    code = 2;
-    sprintf(replyBuffer, "22");
   } else if (xPosition > hig_thresh && yPosition < low_thresh)  {
     code = 2;
     sprintf(replyBuffer, "22");
@@ -116,7 +107,7 @@ void loop() {
     code = 3;
     sprintf(replyBuffer, "33");
   } else if (xPosition > hig_thresh && yPosition > hig_thresh)  {
-    code = 3;
+    code = 3; // duplicate of above since we have 8 positions but 7 rgb combos
     sprintf(replyBuffer, "333");
   } else if (xPosition > hig_thresh) { // these are up,down, left right
     code = 4;
@@ -142,15 +133,14 @@ void loop() {
     
     // receiver triggers on length of the packet
     Udp.beginPacket(remoteIp, localPort);
-    Udp.write(replyBuffer,code);
+    Udp.write(replyBuffer,code+1);
     Udp.endPacket();
 
     Serial.print("Reply = ");
     Serial.print(replyBuffer);
     Serial.print(" len ");
     Serial.println(strlen(replyBuffer));
-  } else {
-    dark();
+    delay(50); // throttle how fast we're sending UDP packets
   }
 
   // if there's data available, read a packet
@@ -170,19 +160,23 @@ void loop() {
     Serial.println(Udp.remotePort());
 
     // read the packet into packetBufffer
-    Udp.read(packetBuffer, UDP_TX_PACKET_MAX_SIZE);
+    int len = Udp.read(packetBuffer, UDP_TX_PACKET_MAX_SIZE);
     Serial.println("Contents:");
     Serial.println(packetBuffer);
-
-    String pbStr = String(packetBuffer);
-    int len = pbStr.length();
 
     Serial.print("length: ");
     Serial.println(len);
     // Set the colors and send a reply when we didn't get an ack
-    if(len > 0 && len < 8) {
-      sendcolors(len);
+    if(len > 0 && len < 9) {
+      if(len == 8) {
+        dark(); // button pressed so we will do darkness
+      } else {
+        sendcolors(len);
+      }
+
       // send a reply to the IP address and port that sent us the packet we received
+      // replies aren't sent on larger messages than size 9 as we assume they are
+      // the ACK messages we have defined at the top in ReplyBuffer
       Udp.beginPacket(Udp.remoteIP(), Udp.remotePort());
       Udp.write(ReplyBuffer);
       Udp.write(packetBuffer,len);
@@ -227,7 +221,6 @@ void sendcolors(int rgb) {
     pixels.show(); // This sends the updated pixel color to the hardware.
   }
   digitalWrite(LED_BUILTIN,LOW);
-  delay(50);
 }
 
 /* Not used
@@ -286,7 +279,7 @@ void pulse(int numpulse, int rgb) {
     }
   }
 
-  // Set the lights back to nothing
+  // Set the lights back to darkness
   for (int i = 0; i < NUMPIXELS; i++) {
     pixels.setPixelColor(i, pixels.Color(0, 0, 0));
     pixels.show(); // This sends the updated pixel color to the hardware.

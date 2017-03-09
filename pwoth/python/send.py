@@ -2,9 +2,9 @@ import socket
 import sys
 
 usage = """
-Send a UDP Datagram of <code> to the specified IP address on port 8888.
+Send a UDP Datagram of <message> to the specified IP address on port 8888.
 Usage:
-  {script} ipaddress code
+  {script} ipaddress message
 """.format(script=sys.argv[0])
 if(len(sys.argv)< 2):
     sys.exit(usage)
