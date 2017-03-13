@@ -121,6 +121,8 @@ void loop() {
   } else if (yPosition < low_thresh) {
     code = 7;
     sprintf(replyBuffer, "7777777");
+  } else {
+    code = -1;
   }
 
   // Send the code to the other pwoth
